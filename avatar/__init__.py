@@ -17,7 +17,7 @@ Avatar is a scalable multi-platform Bluetooth testing tool capable of running
 any Bluetooth test cases virtually and physically.
 """
 
-__version__ = "0.0.9"
+__version__ = "0.0.4"
 
 import argparse
 import enum
@@ -54,7 +54,6 @@ PANDORA_COMMON_SERVER_CLASSES: Dict[str, Type[pandora_server.PandoraServer[Any]]
     'PandoraDevice': pandora_server.PandoraServer,
     'AndroidDevice': pandora_server.AndroidPandoraServer,
     'BumbleDevice': pandora_server.BumblePandoraServer,
-    'UsbDevice': pandora_server.UsbBumblePandoraServer,
 }
 
 KEY_PANDORA_SERVER_CLASS = 'pandora_server_class'
