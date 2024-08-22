@@ -31,7 +31,7 @@ from the root of your Android repository:
 
 ```shell
 source build/envsetup.sh
-lunch aosp_cf_x86_64_phone-trunk_staging-userdebug
+lunch aosp_cf_x86_64_phone-userdebug
 acloud create --local-image --local-instance
 ```
 
@@ -75,8 +75,6 @@ Create a new Avatar test class file `codelab_test.py` in the Android Avatar
 tests folder, `packages/modules/Bluetooth/android/pandora/test/`:
 
 ```python
-import asyncio # Provides utilities for calling asynchronous functions.
-
 from typing import Optional  # Avatar is strictly typed.
 
 # Importing Mobly modules required for the test.
@@ -92,7 +90,7 @@ from pandora.host_pb2 import RANDOM, DataTypes
 
 
 # The test class to test the LE (Bluetooth Low Energy) Connectivity.
-class CodelabTest(base_test.BaseTestClass): # type: ignore[misc]
+class CodelabTest(base_test.BaseTestClass):
     devices: Optional[PandoraDevices] = None
     dut: PandoraClient
     ref: BumblePandoraClient  # `BumblePandoraClient` is a sub-class of `PandoraClient`
@@ -100,7 +98,7 @@ class CodelabTest(base_test.BaseTestClass): # type: ignore[misc]
     # Method to set up the DUT and REF devices for the test (called once).
     def setup_class(self) -> None:
         self.devices = PandoraDevices(self)  # Create Pandora devices from the config.
-        self.dut, ref, *_ = self.devices
+        self.dut, ref = self.devices
         assert isinstance(ref, BumblePandoraClient)  # REF device is a Bumble device.
         self.ref = ref
 
