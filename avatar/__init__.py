@@ -17,7 +17,7 @@ Avatar is a scalable multi-platform Bluetooth testing tool capable of running
 any Bluetooth test cases virtually and physically.
 """
 
-__version__ = "0.0.9"
+__version__ = "0.0.10"
 
 import argparse
 import enum
@@ -42,6 +42,7 @@ from typing import Any, Callable, Dict, Iterable, Iterator, List, Optional, Size
 # public symbols
 __all__ = [
     'asynchronous',
+    'enableFlag',
     'parameterized',
     'rpc_except',
     'PandoraDevices',
@@ -204,6 +205,41 @@ def parameterized(*inputs: Tuple[Any, ...]) -> Type[Wrapper]:
             delattr(owner, name)
 
     return wrapper
+
+
+def enableFlag(flag: str) -> Callable[..., Any]:
+    """Enable aconfig flag.
+
+    Requires that the test class declares a devices: Optional[PandoraDevices] attribute.
+
+    Args:
+        flag: aconfig flag name including package, e.g.: 'com.android.bluetooth.flags.<flag_name>'
+
+    Raises:
+        AttributeError: when the 'devices' attribute is not found or not set
+        TypeError: when the provided flag argument is not a string
+    """
+
+    def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
+        @functools.wraps(func)
+        def wrapper(self: base_test.BaseTestClass, *args: Any, **kwargs: Any) -> Any:
+            devices = getattr(self, 'devices', None)
+
+            if not devices:
+                raise AttributeError("Attribute 'devices' not found in test class or is None")
+
+            if not isinstance(devices, PandoraDevices):
+                raise TypeError("devices attribute must be of a PandoraDevices type")
+
+            for server in devices._servers:
+                if isinstance(server, pandora_server.AndroidPandoraServer):
+                    server.device.adb.shell(['device_config override bluetooth', flag, 'true'])  # type: ignore
+                    break
+            return func(self, *args, **kwargs)
+
+        return wrapper
+
+    return decorator
 
 
 _T = TypeVar('_T')
