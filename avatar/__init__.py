@@ -27,6 +27,7 @@ import grpc.aio
 import importlib
 import logging
 import pathlib
+import re
 
 from avatar import pandora_server
 from avatar.aio import asynchronous
@@ -220,6 +221,22 @@ def enableFlag(flag: str) -> Callable[..., Any]:
         TypeError: when the provided flag argument is not a string
     """
 
+    def getFlagValue(server: PandoraServer[Any], flag: str) -> str:
+        cmd_output = server.device.adb.shell(f'aflags list -c com.android.bt | grep {flag}').decode().split('\n')
+        cmd_output = [x for x in cmd_output if x] # Filter out empty lines from shell result
+        if len(cmd_output) == 0:
+            raise signals.TestError(f'Flag [{flag}] is not present in the aflags list of the device')
+        if len(cmd_output) != 1:
+            raise signals.TestError(f'Flag [{flag}] has multiple entries in the aflags list of the device. Output was {cmd_output}')
+        return cmd_output[0]
+
+    def isFlagEnabled(server: PandoraServer[Any], flag: str) -> bool:
+        return bool(re.search(flag + '.* enabled', getFlagValue(server, flag)))
+
+    # A "valid" flag is either already enabled or writable
+    def isFlagValidForTest(server: PandoraServer[Any], flag: str) -> bool:
+        return bool(re.search(flag + '.* (enabled|read-write)', getFlagValue(server, flag)))
+
     def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
         @functools.wraps(func)
         def wrapper(self: base_test.BaseTestClass, *args: Any, **kwargs: Any) -> Any:
@@ -231,11 +248,27 @@ def enableFlag(flag: str) -> Callable[..., Any]:
             if not isinstance(devices, PandoraDevices):
                 raise TypeError("devices attribute must be of a PandoraDevices type")
 
+            listOfServerToRestoreFlag: List[PandoraServer[Any]] = []
+
             for server in devices._servers:
                 if isinstance(server, pandora_server.AndroidPandoraServer):
-                    server.device.adb.shell(['device_config override bluetooth', flag, 'true'])  # type: ignore
-                    break
-            return func(self, *args, **kwargs)
+                    if not isFlagValidForTest(server, flag):
+                        raise signals.TestSkip('Flag cannot be enabled on this device')
+                    if isFlagEnabled(server, flag):
+                        continue # Nothing to do flag is already active
+                    server.device.adb.shell(f'aflags enable --immediate {flag}')  # type: ignore
+                    if not isFlagEnabled(server, flag):
+                        raise signals.TestError('Despite writable flag, runner couldn\'t enable it')
+                    listOfServerToRestoreFlag.append(server)
+
+            result = func(self, *args, **kwargs)
+
+            for server in listOfServerToRestoreFlag:
+                server.device.adb.shell(f'aflags unset --immediate {flag}')  # type: ignore
+                if isFlagEnabled(server, flag):
+                    raise signals.TestError('Despite writable flag, runner couldn\'t reset its initial value')
+
+            return result
 
         return wrapper
 
